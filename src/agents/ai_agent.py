@@ -2,7 +2,7 @@ import os
 import openai
 import json
 from dotenv import load_dotenv
-from .prompts import parse_input_prompt
+from .prompts import fill_database_fields_prompt,fill_markdown_template_prompt
 
 load_dotenv()
 
@@ -11,124 +11,67 @@ class LLMHelper:
     AI wrapper for structured field inference and template enhancement.
     """
 
-    def __init__(self, model_name="gpt-4", temperature=0.7):
+    def __init__(self, model_name="gpt-4", temperature=0.7, purpose=None):
         self.model_name = model_name
         self.temperature = temperature
+        self.purpose = purpose or "general purpose AI assistant"
         openai.api_key = os.getenv("OPENAI_API_KEY")
 
-    def parse_user_input(self, text: str, fields: dict, required_fields: list) -> dict:
-        """
-        Convert raw user text into structured key-value suggestions for fields.
-        required_fields: list of database fields to prioritize
-        """
+    def set_purpose(self, purpose: str):
+        """Update the agent's purpose dynamically (e.g. 'video production assistant')."""
+        self.purpose = purpose
 
-        response = openai.ChatCompletion.create(
-            model=self.model_name,
-            messages=[{"role": "user", "content": parse_input_prompt(text=text,fields=fields,required_fields=required_fields)}],
-            temperature=self.temperature,
+    def fill_db_fields(self, text: str, fields: dict, required_fields: list) -> dict:
+        """
+        Converts raw user text into structured key-value suggestions for database fields.
+        """
+        prompt = fill_database_fields_prompt(
+            purpose=self.purpose,
+            text=text,
+            fields=fields,
+            required_fields=required_fields,
         )
-        content = response["choices"][0]["message"]["content"]
 
         try:
+            print('Processing DB fields...')
+            response = openai.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.temperature,
+            )
+            content = response.choices[0].message.content.strip()
+            content = content.replace("None", "null").replace("'", '"')
             parsed = json.loads(content)
-        except:
-            parsed = {}
-        return parsed
+            return parsed
 
-    def suggest_enhancements(self, parsed_input: dict) -> dict:
-        """
-        Suggest enhancements for video template sections.
-        """
-        prompt = f"""
-        You are a creative video assistant. 
-        Given the following initial video idea data:
-        {parsed_input}
+        except json.JSONDecodeError:
+            print("⚠️ Warning: Model returned invalid JSON. Returning empty dict.")
+            return {}
+        except Exception as e:
+            print(f"❌ Error in fill_db_fields: {e}")
+            return {}
 
-        Suggest additional notes, shot ideas, lighting, mood, music, or creative enhancements.
-        Return as JSON where keys are sections (Shot List, Mood/Atmosphere, Lighting, Soundtrack, Editing Notes, etc.)
+    def fill_markdown_template(self, text: str, template: str) -> str:
         """
-
-        response = openai.ChatCompletion.create(
-            model=self.model_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=self.temperature,
+        Fills in a markdown template using user-provided text.
+        Returns the completed markdown string.
+        """
+        prompt = fill_markdown_template_prompt(
+            purpose=self.purpose,
+            template=template,
+            text=text,
         )
-        content = response["choices"][0]["message"]["content"]
 
-        import json
         try:
-            enhancements = json.loads(content)
-        except:
-            enhancements = {}
-        return enhancements# src/agents/ai_agent.py
-import os
-import openai
-from dotenv import load_dotenv
+            print('Filling in markdown template...')
+            response = openai.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.temperature,
+            )
+            content = response.choices[0].message.content.strip()
+            return content  
 
-load_dotenv()
-
-class LLMHelper:
-    """
-    AI wrapper for structured field inference and template enhancement.
-    """
-
-    def __init__(self, model_name="gpt-4", temperature=0.7):
-        self.model_name = model_name
-        self.temperature = temperature
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-
-    def parse_user_input(self, text: str, required_fields: list) -> dict:
-        """
-        Convert raw user text into structured key-value suggestions for fields.
-        required_fields: list of database fields to prioritize
-        """
-        prompt = f"""
-        You are an assistant that converts a user's video idea into structured data.
-        Required fields: {required_fields}
-        User input: {text}
-
-        Return a JSON object mapping each required field to a suggested value.
-        If the user did not provide enough info, leave the field empty.
-        """
-
-        response = openai.ChatCompletion.create(
-            model=self.model_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=self.temperature,
-        )
-        content = response["choices"][0]["message"]["content"]
-
-        # Attempt to parse JSON from LLM output
-        import json
-        try:
-            parsed = json.loads(content)
-        except:
-            parsed = {}
-        return parsed
-
-    def suggest_enhancements(self, parsed_input: dict) -> dict:
-        """
-        Suggest enhancements for video template sections.
-        """
-        prompt = f"""
-        You are a creative video assistant. 
-        Given the following initial video idea data:
-        {parsed_input}
-
-        Suggest additional notes, shot ideas, lighting, mood, music, or creative enhancements.
-        Return as JSON where keys are sections (Shot List, Mood/Atmosphere, Lighting, Soundtrack, Editing Notes, etc.)
-        """
-
-        response = openai.ChatCompletion.create(
-            model=self.model_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=self.temperature,
-        )
-        content = response["choices"][0]["message"]["content"]
-
-        import json
-        try:
-            enhancements = json.loads(content)
-        except:
-            enhancements = {}
-        return enhancements
+        except Exception as e:
+            print(f"❌ Error in fill_markdown_template: {e}")
+            return template  
