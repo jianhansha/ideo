@@ -1,8 +1,13 @@
-sys.path.append(os.path.abspath(".."))
-from .parser import md_to_blocks
-from .agents.schema_agent import SchemaAgent
+import sys
+import os
+from .notion_core import NotionCore
 
-def create_notion_ticket(client, database_id, template_md_path, user_inputs: dict):
+
+sys.path.append(os.path.abspath(".."))
+from src.agents.schema_agent import SchemaAgent
+
+
+def create_notion_ticket(fields: dict, content: str):
     """
     Creates a Notion page in the given database using:
       - schema from SchemaAgent (dynamic properties)
@@ -12,17 +17,13 @@ def create_notion_ticket(client, database_id, template_md_path, user_inputs: dic
 
     schema_agent = SchemaAgent()
 
-    properties_payload = schema_agent.build_property_payload(user_inputs)
+    properties_payload = schema_agent.build_property_payload(fields)
 
-    with open(template_md_path, "r") as f:
-        md_content = f.read()
-    template_blocks = md_to_blocks(md_content)
+    notion = NotionCore()
 
-    response = client.pages.create(
-        parent={"database_id": database_id},
-        properties=properties_payload,
-        children=template_blocks
+    response = notion.client.pages.create(
+        parent={"database_id": notion._get_database_id()}, properties=properties_payload
     )
-
-    print("Created Notion page:", response["id"])
-    return response
+    for block in notion._parse_markdown(content):
+        notion.client.blocks.children.append(response["id"], children=[block])
+    return response["id"]

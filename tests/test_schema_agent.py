@@ -2,7 +2,6 @@ import sys
 import os
 
 sys.path.append(os.path.abspath(".."))
-from src.utils.notion_core import Client
 from src.agents.schema_agent import SchemaAgent
 
 agent = SchemaAgent()

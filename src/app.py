@@ -13,7 +13,7 @@ if "messages" not in st.session_state:
 # --- LOAD ENV ---
 load_dotenv()
 default_openai = os.getenv("OPENAI_API_KEY", "")
-default_notion = os.getenv("NOTION_API_KEY", "")
+default_notion = os.getenv("NOTION_SECRET", "")
 default_db = os.getenv("NOTION_DB_LINK", "")
 default_template = os.getenv("NOTION_TEMPLATE_LINK", "")
 default_purpose = os.getenv("AGENT_PURPOSE", "")

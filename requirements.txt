@@ -1,4 +1,6 @@
 openai
 python-dotenv
 notion-client
+notion-to-md-py
+md2notionpage
 streamlit

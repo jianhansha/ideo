@@ -1,58 +1,53 @@
-from ..utils.notion_core import (
-    get_notion_client,
-    get_notion_database_id,
-    get_notion_database_schema,
-)
-
+from typing import Dict, List, Any
+from ..utils.notion_core import NotionCore
 
 class SchemaAgent:
-    def __init__(self):
-        self.notion = get_notion_client()
-        self.database_id = get_notion_database_id()
-        self.schema = get_notion_database_schema(self.notion, self.database_id)
+    """
+    Handles Notion database schema operations such as summarizing fields,
+    identifying required fields, and building property payloads for API requests.
+    """
 
-    def summarize_schema(self):
-        summary = []
-        for name, details in self.schema.items():
-            prop_type = details["type"]
-            summary.append(f"- {name} ({prop_type})")
+    def __init__(self):
+        self.schema = NotionCore().database_schema
+
+    def summarize_schema(self) -> str:
+        """Returns a human-readable summary of the schema."""
+        summary = [f"- {name} ({details['type']})" for name, details in self.schema.items()]
         return "\n".join(summary)
 
-    def get_required_fields(self):
-        required = []
-        for name, details in self.schema.items():
-            if details["type"] in ["title", "select"]:
-                required.append(name)
-        return required
+    def get_required_fields(self) -> List[str]:
+        """Returns a list of required field names based on type."""
+        return [name for name, details in self.schema.items() if details["type"] in ["title", "select"]]
 
-    def build_property_payload(self, user_inputs: dict):
+    def _format_property(self, name: str, value: Any, prop_type: str) -> Dict:
+        """Helper to format a single property for Notion API."""
+        if prop_type == "title":
+            return {name: {"title": [{"text": {"content": str(value)}}]}}
+        if prop_type == "rich_text":
+            return {name: {"rich_text": [{"text": {"content": str(value)}}]}}
+        if prop_type == "select":
+            return {name: {"select": {"name": str(value)}}}
+        if prop_type == "multi_select":
+            values = value if isinstance(value, list) else [value]
+            return {name: {"multi_select": [{"name": str(v)} for v in values]}}
+        if prop_type == "date":
+            return {name: {"date": {"start": str(value)}}}
+        if prop_type == "number":
+            return {name: {"number": float(value)}}
+        if prop_type == "checkbox":
+            return {name: {"checkbox": bool(value)}}
+        if prop_type == "url":
+            return {name: {"url": str(value)}}
+        # Fallback to rich_text for unknown types
+        return {name: {"rich_text": [{"text": {"content": str(value)}}]}}
+
+    def build_property_payload(self, user_inputs: Dict[str, Any]) -> Dict[str, Dict]:
+        """
+        Converts user input into Notion API property payload format.
+        Only includes fields present in both the schema and the user input.
+        """
         properties = {}
         for name, details in self.schema.items():
-            if name not in user_inputs:
-                continue
-            value = user_inputs[name]
-            prop_type = details["type"]
-
-            if prop_type == "title":
-                properties[name] = {"title": [{"text": {"content": value}}]}
-            elif prop_type == "rich_text":
-                properties[name] = {"rich_text": [{"text": {"content": value}}]}
-            elif prop_type == "select":
-                properties[name] = {"select": {"name": value}}
-            elif prop_type == "multi_select":
-                if isinstance(value, list):
-                    properties[name] = {"multi_select": [{"name": v} for v in value]}
-                else:
-                    properties[name] = {"multi_select": [{"name": value}]}
-            elif prop_type == "date":
-                properties[name] = {"date": {"start": value}}
-            elif prop_type == "number":
-                properties[name] = {"number": float(value)}
-            elif prop_type == "checkbox":
-                properties[name] = {"checkbox": bool(value)}
-            elif prop_type == "url":
-                properties[name] = {"url": value}
-            else:
-                properties[name] = {"rich_text": [{"text": {"content": str(value)}}]}
-
+            if name in user_inputs:
+                properties.update(self._format_property(name, user_inputs[name], details["type"]))
         return properties

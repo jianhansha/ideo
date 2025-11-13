@@ -1,16 +1,11 @@
-import sys
 import os
+import sys
 
 sys.path.append(os.path.abspath(".."))
-import src.utils.notion_utils as notion_client
+import src.utils.notion_core as NC
+from src.utils.notion_utils import create_notion_ticket
 
-
-notion = notion_client.get_notion_client()
-database_id = notion_client.get_notion_database_id()
-#template_id = notion_client.get_notion_template_id()
-template_path = "../tools/Video Project Template.md"
-
-user_inputs = {
+fields = {
     "Title": "Moody Night Street Scene",
     "Caption": "Inspired by Blade Runner aesthetics. Add slow dolly motion.",
     "Category": ["Lifestyle"],
@@ -23,5 +18,5 @@ user_inputs = {
     "Song": "Song 1",
 }
 
-response = create_notion_ticket(notion, database_id, template_path, user_inputs)
+response = create_notion_ticket(fields,NC.NotionCore().template_markdown)
 print("New Ticket Created: " + response)
